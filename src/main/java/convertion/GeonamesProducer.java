@@ -95,7 +95,7 @@ public class GeonamesProducer {
         // .add(new SimpleNamespace("dcterms", DCTERMS.NAMESPACE))
         // .add(new SimpleNamespace("wgs84", NS_WGS_SCHEMA))
         // .add(new SimpleNamespace("xsd", XMLSchema.NAMESPACE))
-        // .add(new SimpleNamespace("arcadia", NS_CUSTOM))
+        // .add(new SimpleNamespace("custom", NS_CUSTOM))
         // .add(new SimpleNamespace("europeana", NS_EUROPEANA_SCHEMA))
         // .add(new SimpleNamespace("skos", SKOS.NAMESPACE))
         // .add(new SimpleNamespace("foaf", NS_FOAF))
