@@ -1,9 +1,21 @@
 package convertion;
 
-import static com.google.common.collect.Maps.newHashMap;
-import static java.nio.file.Files.newOutputStream;
-import static lombok.AccessLevel.PRIVATE;
-import static org.apache.commons.lang3.StringUtils.isNotEmpty;
+import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.Multimap;
+import lombok.experimental.FieldDefaults;
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.LineIterator;
+import org.eclipse.rdf4j.model.IRI;
+import org.eclipse.rdf4j.model.Literal;
+import org.eclipse.rdf4j.model.Statement;
+import org.eclipse.rdf4j.model.impl.SimpleValueFactory;
+import org.eclipse.rdf4j.model.vocabulary.XMLSchema;
+import org.eclipse.rdf4j.rio.turtle.TurtleWriter;
+import org.mapdb.DB;
+import org.mapdb.DBMaker;
+import org.mapdb.Serializer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
@@ -11,26 +23,14 @@ import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.Map;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 
-import com.google.common.collect.Multimap;
-import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.LineIterator;
-import org.mapdb.DBMaker;
-import org.openrdf.model.IRI;
-import org.openrdf.model.Literal;
-import org.openrdf.model.Statement;
-import org.openrdf.model.impl.SimpleValueFactory;
-import org.openrdf.model.vocabulary.XMLSchema;
-import org.openrdf.rio.turtle.TurtleWriter;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import com.google.common.collect.ArrayListMultimap;
-import com.google.common.collect.ListMultimap;
-
-import lombok.experimental.FieldDefaults;
+import static com.google.common.collect.Maps.newHashMap;
+import static java.nio.file.Files.newOutputStream;
+import static lombok.AccessLevel.PRIVATE;
+import static org.apache.commons.lang3.StringUtils.isNotEmpty;
 
 /*
  * inspired by https://github.com/europeana/tools/tree/master/trunk/annocultor/converters/geonames
@@ -41,7 +41,7 @@ public class GeonamesProducer {
     static final String NS_GEONAMES_INSTANCES = "http://sws.geonames.org/";
     static final String GN_ONTO = "http://www.geonames.org/ontology#";
     static final String NS_WGS_SCHEMA = "http://www.w3.org/2003/01/geo/wgs84_pos#";
-    static final String NS_ARCADIA = "http://example.com/ontologies/customOntology#";
+    static final String NS_CUSTOM = "http://example.com/ontologies/customOntology#";
     static final String NS_DCTERMS = "http://purl.org/dc/terms/";
     static final String NS_FOAF = "http://xmlns.com/foaf/0.1/";
 
@@ -76,7 +76,7 @@ public class GeonamesProducer {
     Map<String, TurtleWriter> files = newHashMap();
     TurtleWriter allCountries = null;
 
-    Map<String, String> adminsToIdsMap;
+    ConcurrentMap<String, String> adminsToIdsMap;
     static final Logger logger = LoggerFactory.getLogger(GeonamesProducer.class);
 
     SimpleValueFactory factory = SimpleValueFactory.getInstance();
@@ -87,14 +87,15 @@ public class GeonamesProducer {
         } catch (IOException e) {
             e.printStackTrace();
         }
-        adminsToIdsMap = DBMaker.tempHashMap();
+        DB db = DBMaker.fileDB("mapFile").make();
+        adminsToIdsMap = db.hashMap("map", Serializer.STRING, Serializer.STRING).create();
         // namespaces = new ImmutableSet.Builder<Namespace>()
         // .add(new SimpleNamespace("gn", NS_GEONAMES_INSTANCES))
         // .add(new SimpleNamespace("gn_ont", NS_GEONAMES_ONTOLOGY))
         // .add(new SimpleNamespace("dcterms", DCTERMS.NAMESPACE))
         // .add(new SimpleNamespace("wgs84", NS_WGS_SCHEMA))
         // .add(new SimpleNamespace("xsd", XMLSchema.NAMESPACE))
-        // .add(new SimpleNamespace("arcadia", NS_ARCADIA))
+        // .add(new SimpleNamespace("arcadia", NS_CUSTOM))
         // .add(new SimpleNamespace("europeana", NS_EUROPEANA_SCHEMA))
         // .add(new SimpleNamespace("skos", SKOS.NAMESPACE))
         // .add(new SimpleNamespace("foaf", NS_FOAF))
@@ -293,7 +294,7 @@ public class GeonamesProducer {
             }
             if (isNotEmpty(elevationValue)) {
                 Statement triple =
-                        factory.createStatement(subject, factory.createIRI(NS_ARCADIA + "gtopo30"),
+                        factory.createStatement(subject, factory.createIRI(NS_CUSTOM + "gtopo30"),
                                 factory.createLiteral(elevationValue, XMLSchema.DECIMAL));
                 write(country, triple, isDescriptionOfCountry);
             }
@@ -318,7 +319,7 @@ public class GeonamesProducer {
 
             if (isNotEmpty(timezoneValue)) {
                 Statement triple =
-                        factory.createStatement(subject, factory.createIRI(NS_ARCADIA + "timezone"),
+                        factory.createStatement(subject, factory.createIRI(NS_CUSTOM + "timezone"),
                                 factory.createLiteral(timezoneValue));
                 write(country, triple, isDescriptionOfCountry);
             }
@@ -331,7 +332,7 @@ public class GeonamesProducer {
 
             if (isNotEmpty(admin2Value) && featureCodeField.equals("A.ADM2")) {
                 Statement triple =
-                        factory.createStatement(subject, factory.createIRI(NS_ARCADIA + "admin2"),
+                        factory.createStatement(subject, factory.createIRI(NS_CUSTOM + "admin2"),
                                 factory.createLiteral(admin2Value));
                 write(country, triple, isDescriptionOfCountry);
             }
