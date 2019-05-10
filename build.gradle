@@ -1,0 +1,30 @@
+plugins {
+    id 'java'
+}
+
+repositories {
+    mavenLocal()
+    maven {
+        url = 'http://repo.maven.apache.org/maven2'
+    }
+}
+
+dependencies {
+    compile 'org.mapdb:mapdb:3.0.7'
+    compile 'com.google.guava:guava:27.1-jre'
+    compile 'org.eclipse.rdf4j:rdf4j-runtime:2.5.1'
+    compile 'org.apache.commons:commons-lang3:3.9'
+    compile 'ch.qos.logback:logback-classic:1.2.3'
+    compile 'org.projectlombok:lombok:1.18.8'
+    testCompile 'junit:junit:4.12'
+}
+
+group = 'epi.projects'
+version = '1.0'
+description = 'Geonames RDF Converter'
+sourceCompatibility = '1.8'
+
+task run(type: JavaExec) {
+    classpath = sourceSets.main.runtimeClasspath
+    main = project.hasProperty("mainClass") ? project.getProperty("mainClass") : "convertion.GeonamesProducer"
+}
