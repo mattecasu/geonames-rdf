@@ -10,7 +10,7 @@ import org.eclipse.rdf4j.model.IRI;
 import org.eclipse.rdf4j.model.Literal;
 import org.eclipse.rdf4j.model.Statement;
 import org.eclipse.rdf4j.model.impl.SimpleValueFactory;
-import org.eclipse.rdf4j.model.vocabulary.XMLSchema;
+import org.eclipse.rdf4j.model.vocabulary.XSD;
 import org.eclipse.rdf4j.rio.turtle.TurtleWriter;
 import org.mapdb.DB;
 import org.mapdb.DBMaker;
@@ -96,7 +96,7 @@ public class GeonamesProducer {
         // .add(new SimpleNamespace("gn_ont", NS_GEONAMES_ONTOLOGY))
         // .add(new SimpleNamespace("dcterms", DCTERMS.NAMESPACE))
         // .add(new SimpleNamespace("wgs84", NS_WGS_SCHEMA))
-        // .add(new SimpleNamespace("xsd", XMLSchema.NAMESPACE))
+        // .add(new SimpleNamespace("xsd", XSD.NAMESPACE))
         // .add(new SimpleNamespace("custom", NS_CUSTOM))
         // .add(new SimpleNamespace("europeana", NS_EUROPEANA_SCHEMA))
         // .add(new SimpleNamespace("skos", SKOS.NAMESPACE))
@@ -206,7 +206,7 @@ public class GeonamesProducer {
             String child = fields[1];
             boolean adm = false;
             if (fields.length > 2) {
-                adm = fields[2].equals("ADM") ? true : false;
+                adm = fields[2].equals("ADM");
             }
             if (adm) {
                 broadersAdm.put(child, parent);
@@ -274,31 +274,31 @@ public class GeonamesProducer {
             if (populationValue.length() > 1) {
                 Statement triple =
                         factory.createStatement(subject, factory.createIRI(GN_ONTO + "population"),
-                                factory.createLiteral(populationValue, XMLSchema.INTEGER));
+                                factory.createLiteral(populationValue, XSD.INTEGER));
                 write(country, triple, isDescriptionOfCountry);
             }
             if (isNotEmpty(longValue)) {
                 Statement triple =
                         factory.createStatement(subject, factory.createIRI(NS_WGS_SCHEMA + "long"),
-                                factory.createLiteral(longValue, XMLSchema.DECIMAL));
+                                factory.createLiteral(longValue, XSD.DECIMAL));
                 write(country, triple, isDescriptionOfCountry);
             }
             if (isNotEmpty(latValue)) {
                 Statement triple =
                         factory.createStatement(subject, factory.createIRI(NS_WGS_SCHEMA + "lat"),
-                                factory.createLiteral(latValue, XMLSchema.DECIMAL));
+                                factory.createLiteral(latValue, XSD.DECIMAL));
                 write(country, triple, isDescriptionOfCountry);
             }
             if (isNotEmpty(altValue)) {
                 Statement triple =
                         factory.createStatement(subject, factory.createIRI(NS_WGS_SCHEMA + "alt"),
-                                factory.createLiteral(altValue, XMLSchema.DECIMAL));
+                                factory.createLiteral(altValue, XSD.DECIMAL));
                 write(country, triple, isDescriptionOfCountry);
             }
             if (isNotEmpty(elevationValue)) {
                 Statement triple =
                         factory.createStatement(subject, factory.createIRI(NS_CUSTOM + "gtopo30"),
-                                factory.createLiteral(elevationValue, XMLSchema.DECIMAL));
+                                factory.createLiteral(elevationValue, XSD.DECIMAL));
                 write(country, triple, isDescriptionOfCountry);
             }
             if (isNotEmpty(featureClassField)) {
@@ -329,7 +329,7 @@ public class GeonamesProducer {
             if (isNotEmpty(modificationDateValue)) {
                 Statement triple =
                         factory.createStatement(subject, factory.createIRI(NS_DCTERMS + "modified"),
-                                factory.createLiteral(modificationDateValue, XMLSchema.DATE));
+                                factory.createLiteral(modificationDateValue, XSD.DATE));
                 write(country, triple, isDescriptionOfCountry);
             }
 
