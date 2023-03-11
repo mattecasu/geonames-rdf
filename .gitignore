@@ -8,3 +8,7 @@ target_json/
 .DS_Store
 build
 .gradle/
+
+output/
+mapFile
+input_source/
