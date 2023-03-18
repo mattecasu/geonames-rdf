@@ -149,7 +149,7 @@ public class GeonamesProducer {
       count++;
 
       if (count % 100000 == 0) {
-        logger.info("Processed %s altNames", count);
+        logger.info(String.format("Processed %s altNames", count));
       }
     }
     it.close();
@@ -204,7 +204,7 @@ public class GeonamesProducer {
           // progress
           counter.incrementAndGet();
           if (counter.get() % 100000 == 0) {
-            logger.info("Processed %s features", counter);
+            logger.info(String.format("Processed %s features", counter));
           }
           boolean isDescriptionOfCountry = feature.getFeatureCodeField().startsWith("A.PCLI");
 
