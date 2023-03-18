@@ -9,6 +9,6 @@ target_json/
 build
 .gradle/
 
-output/
+/output/
+/input_source/
 mapFile
-input_source/
