@@ -7,6 +7,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Set;
 import lombok.experimental.Accessors;
 import lombok.experimental.FieldDefaults;
+import namespaces.Namespaces;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.LineIterator;
 import org.eclipse.rdf4j.model.IRI;
@@ -38,6 +39,12 @@ import java.util.stream.Stream;
 import static com.google.common.collect.Maps.newHashMap;
 import static java.nio.file.Files.newOutputStream;
 import static lombok.AccessLevel.PRIVATE;
+import static namespaces.Namespaces.GN_ONTO;
+import static namespaces.Namespaces.NS_CUSTOM;
+import static namespaces.Namespaces.NS_DCTERMS;
+import static namespaces.Namespaces.NS_FOAF;
+import static namespaces.Namespaces.NS_GEONAMES_INSTANCES;
+import static namespaces.Namespaces.NS_WGS_SCHEMA;
 import static org.apache.commons.lang3.StringUtils.isNotEmpty;
 
 /*
@@ -47,44 +54,17 @@ import static org.apache.commons.lang3.StringUtils.isNotEmpty;
 @FieldDefaults(level = PRIVATE)
 @Accessors(chain = true)
 public class GeonamesProducer {
-  static final String NS_GEONAMES_INSTANCES = "http://sws.geonames.org/";
-  static final String GN_ONTO = "http://www.geonames.org/ontology#";
-  static final String NS_WGS_SCHEMA = "http://www.w3.org/2003/01/geo/wgs84_pos#";
-  static final String NS_CUSTOM = "http://example.com/ontologies/customOntology#";
-  static final String NS_DCTERMS = "http://purl.org/dc/terms/";
-  static final String NS_FOAF = "http://xmlns.com/foaf/0.1/";
 
-  static final String NS_EUROPEANA_SCHEMA = "http://www.europeana.eu/resolve/ontology/";
-
-  private final Set<Namespace> namespaces;
+  private final Set<Namespace> namespaces = Namespaces.getNamespaces();
 
   // indexes
-  static final int geonameid = 0; // id of record in geonames database
-  static final int name = 1; // name
-  // private static final int asciiname = 2; // name in plain ascii
-  // public static int alternatenames = 3; // alternatenames, comma separated
-  final int latitude = 4; // latitude (wgs84)
-  static final int longitude = 5; // longitude (wgs84)
-  static final int featureClass = 6;
-  static final int featureCode = 7;
-  static final int countryCode = 8; // ISO-3166 2-letter country code, 2 characters
-  // private static final int cc2 = 9; // alternate country codes, comma separated, ISO-3166
-  static final int admin1code = 10; // fipscode, see file admin1Codes.txt for names
-  static final int admin2code = 11;
-  static final int admin3code = 12;
-  static final int admin4code = 13;
-  static final int population = 14;
-  static final int elevation = 15;
-  static final int altitude = 16;
-  static final int timezone = 17;
-  static final int modificationDate = 18; // yyyy-MM-dd
 
   static final String input_source = "input_source";
   static final String output = "output";
 
-  Multimap<String, String> links = ArrayListMultimap.create();
-  Multimap<String, String> broaders = ArrayListMultimap.create();
-  Multimap<String, String> broadersAdm = ArrayListMultimap.create();
+  private Multimap<String, String> links = ArrayListMultimap.create();
+  private Multimap<String, String> broaders = ArrayListMultimap.create();
+  private Multimap<String, String> broadersAdm = ArrayListMultimap.create();
 
   Map<String, TurtleWriter> files = newHashMap();
   TurtleWriter allCountries = null;
@@ -95,42 +75,16 @@ public class GeonamesProducer {
   SimpleValueFactory factory = SimpleValueFactory.getInstance();
 
   public GeonamesProducer() {
-    try {
-      Files.createDirectory(Paths.get(output));
-    } catch (IOException e) {
-      e.printStackTrace();
-    }
+    IoUtils.createDir(output);
     DB db = DBMaker.fileDB(output + "/mapFile").make();
     adminsToIdsMap = db.hashMap("map", Serializer.STRING, Serializer.STRING).create();
-    namespaces =
-        new ImmutableSet.Builder<Namespace>()
-            .add(new SimpleNamespace("gn", NS_GEONAMES_INSTANCES))
-            .add(new SimpleNamespace("gn_ont", GN_ONTO))
-            .add(new SimpleNamespace("dcterms", DCTERMS.NAMESPACE))
-            .add(new SimpleNamespace("wgs84", NS_WGS_SCHEMA))
-            .add(new SimpleNamespace("xsd", XSD.NAMESPACE))
-            .add(new SimpleNamespace("custom", NS_CUSTOM))
-            .add(new SimpleNamespace("europeana", NS_EUROPEANA_SCHEMA))
-            .add(new SimpleNamespace("skos", SKOS.NAMESPACE))
-            .add(new SimpleNamespace("foaf", NS_FOAF))
-            .build();
-  }
-
-  private TurtleWriter getWriter(String path) {
-    TurtleWriter writer = null;
-    try {
-      writer = new TurtleWriter(newOutputStream(Paths.get(path)));
-    } catch (IOException e) {
-      e.printStackTrace();
-    }
-    return writer;
   }
 
   private void write(String country, Statement triple, boolean isDescriptionOfCountry) {
     // String continent = countryToContinent.getProperty(country);
     if (isDescriptionOfCountry) {
       if (allCountries == null) {
-        allCountries = getWriter(output + "/all-countries.ttl");
+        allCountries = IoUtils.getWriter(output + "/all-countries.ttl");
         allCountries.startRDF();
         namespaces.forEach(ns -> allCountries.handleNamespace(ns.getPrefix(), ns.getName()));
       }
@@ -140,7 +94,7 @@ public class GeonamesProducer {
     TurtleWriter writer = files.get(country);
     if (writer == null) {
       country = country.equals("") ? "noCountry" : country;
-      writer = getWriter(output + "/" + country + ".ttl");
+      writer = IoUtils.getWriter(output + "/" + country + ".ttl");
       files.put(country, writer);
       writer.startRDF();
       for (Namespace ns : namespaces) {
@@ -251,193 +205,174 @@ public class GeonamesProducer {
 
     it.forEach(
         line -> {
-          String[] fields = line.split("\t");
-          if (fields.length != 19) {
-            it.close();
-            throw new RuntimeException("::: Field names mismatch on " + line);
-          }
+          GeonamesFeature feature = new GeonamesFeature(line);
 
           // progress
           counter.incrementAndGet();
           if (counter.get() % 100000 == 0) {
             logger.info("Passed " + counter);
           }
-          String country = fields[countryCode];
+          boolean isDescriptionOfCountry = feature.getFeatureCodeField().startsWith("A.PCLI");
 
-          String id = fields[geonameid];
-          String nameValue = fields[name];
-          String uri = codeToUri(id);
-          IRI subject = factory.createIRI(uri);
-          String featureCodeField = fields[featureClass] + "." + fields[featureCode];
-          String featureClassField = fields[featureClass];
-          String populationValue = fields[population];
-          String timezoneValue = fields[timezone];
-          String modificationDateValue = fields[modificationDate];
-          String latValue = fields[latitude];
-          String longValue = fields[longitude];
-          String altValue = fields[altitude];
-          String elevationValue = fields[elevation];
-          String admin1Value = fields[admin1code];
-          String admin2Value = fields[admin2code];
-          String admin3Value = fields[admin3code];
-          String admin4Value = fields[admin4code];
-
-          // if (includeRecordInConversion(featureCodeField, populationValue)) {
-
-          boolean isDescriptionOfCountry = featureCodeField.startsWith("A.PCLI");
-
-          if (isNotEmpty(nameValue)) {
+          if (isNotEmpty(feature.getNameValue())) {
             Statement triple =
                 factory.createStatement(
-                    subject,
+                    feature.getSubject(),
                     factory.createIRI(GN_ONTO + "name"),
-                    factory.createLiteral(fields[name]));
-            write(country, triple, isDescriptionOfCountry);
+                    factory.createLiteral(feature.getNameValue()));
+            write(feature.getCountry(), triple, isDescriptionOfCountry);
           }
 
-          if (populationValue.length() > 1) {
+          if (feature.getPopulationValue().length() > 1) {
             Statement triple =
                 factory.createStatement(
-                    subject,
+                    feature.getSubject(),
                     factory.createIRI(GN_ONTO + "population"),
-                    factory.createLiteral(populationValue, XSD.INTEGER));
-            write(country, triple, isDescriptionOfCountry);
+                    factory.createLiteral(feature.getPopulationValue(), XSD.INTEGER));
+            write(feature.getCountry(), triple, isDescriptionOfCountry);
           }
-          if (isNotEmpty(longValue)) {
+          if (isNotEmpty(feature.getLongValue())) {
             Statement triple =
                 factory.createStatement(
-                    subject,
+                    feature.getSubject(),
                     factory.createIRI(NS_WGS_SCHEMA + "long"),
-                    factory.createLiteral(longValue, XSD.DECIMAL));
-            write(country, triple, isDescriptionOfCountry);
+                    factory.createLiteral(feature.getLongValue(), XSD.DECIMAL));
+            write(feature.getCountry(), triple, isDescriptionOfCountry);
           }
-          if (isNotEmpty(latValue)) {
+          if (isNotEmpty(feature.getLatValue())) {
             Statement triple =
                 factory.createStatement(
-                    subject,
+                    feature.getSubject(),
                     factory.createIRI(NS_WGS_SCHEMA + "lat"),
-                    factory.createLiteral(latValue, XSD.DECIMAL));
-            write(country, triple, isDescriptionOfCountry);
+                    factory.createLiteral(feature.getLatValue(), XSD.DECIMAL));
+            write(feature.getCountry(), triple, isDescriptionOfCountry);
           }
-          if (isNotEmpty(altValue)) {
+          if (isNotEmpty(feature.getAltValue())) {
             Statement triple =
                 factory.createStatement(
-                    subject,
+                    feature.getSubject(),
                     factory.createIRI(NS_WGS_SCHEMA + "alt"),
-                    factory.createLiteral(altValue, XSD.DECIMAL));
-            write(country, triple, isDescriptionOfCountry);
+                    factory.createLiteral(feature.getAltValue(), XSD.DECIMAL));
+            write(feature.getCountry(), triple, isDescriptionOfCountry);
           }
-          if (isNotEmpty(elevationValue)) {
+          if (isNotEmpty(feature.getElevationValue())) {
             Statement triple =
                 factory.createStatement(
-                    subject,
+                    feature.getSubject(),
                     factory.createIRI(NS_CUSTOM + "gtopo30"),
-                    factory.createLiteral(elevationValue, XSD.DECIMAL));
-            write(country, triple, isDescriptionOfCountry);
+                    factory.createLiteral(feature.getElevationValue(), XSD.DECIMAL));
+            write(feature.getCountry(), triple, isDescriptionOfCountry);
           }
-          if (isNotEmpty(featureClassField)) {
+          if (isNotEmpty(feature.getFeatureClassField())) {
             Statement triple =
                 factory.createStatement(
-                    subject,
+                    feature.getSubject(),
                     factory.createIRI(GN_ONTO + "featureClass"),
-                    factory.createIRI(GN_ONTO + featureClassField));
-            write(country, triple, isDescriptionOfCountry);
+                    factory.createIRI(GN_ONTO + feature.getFeatureClassField()));
+            write(feature.getCountry(), triple, isDescriptionOfCountry);
           }
-          if (isNotEmpty(featureCodeField)) {
+          if (isNotEmpty(feature.getFeatureCodeField())) {
             Statement triple =
                 factory.createStatement(
-                    subject,
+                    feature.getSubject(),
                     factory.createIRI(GN_ONTO + "featureCode"),
-                    factory.createIRI(GN_ONTO + featureCodeField));
-            write(country, triple, isDescriptionOfCountry);
+                    factory.createIRI(GN_ONTO + feature.getFeatureCodeField()));
+            write(feature.getCountry(), triple, isDescriptionOfCountry);
           }
-          if (isNotEmpty(country)) {
+          if (isNotEmpty(feature.getCountry())) {
             Statement triple =
                 factory.createStatement(
-                    subject,
+                    feature.getSubject(),
                     factory.createIRI(GN_ONTO + "countryCode"),
-                    factory.createLiteral(country));
-            write(country, triple, isDescriptionOfCountry);
+                    factory.createLiteral(feature.getCountry()));
+            write(feature.getCountry(), triple, isDescriptionOfCountry);
           }
 
-          if (isNotEmpty(timezoneValue)) {
+          if (isNotEmpty(feature.getTimezoneValue())) {
             Statement triple =
                 factory.createStatement(
-                    subject,
+                    feature.getSubject(),
                     factory.createIRI(NS_CUSTOM + "timezone"),
-                    factory.createLiteral(timezoneValue));
-            write(country, triple, isDescriptionOfCountry);
+                    factory.createLiteral(feature.getTimezoneValue()));
+            write(feature.getCountry(), triple, isDescriptionOfCountry);
           }
-          if (isNotEmpty(modificationDateValue)) {
+          if (isNotEmpty(feature.getModificationDateValue())) {
             Statement triple =
                 factory.createStatement(
-                    subject,
+                    feature.getSubject(),
                     factory.createIRI(NS_DCTERMS + "modified"),
-                    factory.createLiteral(modificationDateValue, XSD.DATE));
-            write(country, triple, isDescriptionOfCountry);
+                    factory.createLiteral(feature.getModificationDateValue(), XSD.DATE));
+            write(feature.getCountry(), triple, isDescriptionOfCountry);
           }
 
-          if (isNotEmpty(admin2Value) && featureCodeField.equals("A.ADM2")) {
+          if (isNotEmpty(feature.getAdmin2Value())
+              && feature.getFeatureCodeField().equals("A.ADM2")) {
             Statement triple =
                 factory.createStatement(
-                    subject,
+                    feature.getSubject(),
                     factory.createIRI(NS_CUSTOM + "admin2"),
-                    factory.createLiteral(admin2Value));
-            write(country, triple, isDescriptionOfCountry);
+                    factory.createLiteral(feature.getAdmin2Value()));
+            write(feature.getCountry(), triple, isDescriptionOfCountry);
           }
 
-          if (links.containsKey(id)) {
-            for (String link : links.get(id)) {
+          if (links.containsKey(feature.getId())) {
+            for (String link : links.get(feature.getId())) {
               String property =
                   link.contains("wikipedia") ? GN_ONTO + "wikipediaArticle" : NS_FOAF + "page";
               Statement triple =
                   factory.createStatement(
-                      subject, factory.createIRI(property), factory.createLiteral(link));
-              write(country, triple, isDescriptionOfCountry);
+                      feature.getSubject(),
+                      factory.createIRI(property),
+                      factory.createLiteral(link));
+              write(feature.getCountry(), triple, isDescriptionOfCountry);
             }
-            links.removeAll(id);
+            links.removeAll(feature.getId());
           }
 
-          if (broaders.containsKey(id)) {
-            for (Object broaderCode : broaders.get(id)) {
+          if (broaders.containsKey(feature.getId())) {
+            for (Object broaderCode : broaders.get(feature.getId())) {
               String broader = (String) broaderCode;
               Statement triple =
                   factory.createStatement(
-                      subject,
+                      feature.getSubject(),
                       factory.createIRI(GN_ONTO + "locatedIn"),
                       factory.createIRI(codeToUri(broader)));
-              write(country, triple, isDescriptionOfCountry);
+              write(feature.getCountry(), triple, isDescriptionOfCountry);
             }
-            broaders.removeAll(id);
+            broaders.removeAll(feature.getId());
           }
 
-          if (broadersAdm.containsKey(id)) {
-            for (Object broaderCode : broadersAdm.get(id)) {
+          if (broadersAdm.containsKey(feature.getId())) {
+            for (Object broaderCode : broadersAdm.get(feature.getId())) {
               String broader = (String) broaderCode;
               Statement triple =
                   factory.createStatement(
-                      subject,
+                      feature.getSubject(),
                       factory.createIRI(GN_ONTO + "parentFeature"),
                       factory.createIRI(codeToUri(broader)));
-              write(country, triple, isDescriptionOfCountry);
+              write(feature.getCountry(), triple, isDescriptionOfCountry);
             }
-            broadersAdm.removeAll(id);
+            broadersAdm.removeAll(feature.getId());
           }
 
           // fields admin1... admin4
           String denormalizedAdmins =
-              country + admin1Value + admin2Value + admin3Value + admin4Value;
+              feature.getCountry()
+                  + feature.getAdmin1Value()
+                  + feature.getAdmin2Value()
+                  + feature.getAdmin3Value()
+                  + feature.getAdmin4Value();
 
           if (adminsToIdsMap.containsKey(denormalizedAdmins)) {
             String father = codeToUri(adminsToIdsMap.get(denormalizedAdmins));
 
-            if (!father.equals(uri)) {
+            if (!father.equals(feature.getUri())) {
               Statement triple =
                   factory.createStatement(
-                      factory.createIRI(uri),
+                      factory.createIRI(feature.getUri()),
                       factory.createIRI(GN_ONTO + "parentFeature"),
                       factory.createIRI(father));
-              write(country, triple, isDescriptionOfCountry);
+              write(feature.getCountry(), triple, isDescriptionOfCountry);
             }
           }
         });
@@ -462,33 +397,41 @@ public class GeonamesProducer {
 
     while (it.hasNext()) {
       String text = it.nextLine();
-
-      String[] fields = text.split("\t");
-
-      String id = fields[geonameid];
-      String featureCodeValue = fields[featureCode];
-      String country = fields[countryCode];
-      String admin1Value = fields[admin1code];
-      String admin2Value = fields[admin2code];
-      String admin3Value = fields[admin3code];
-      String admin4Value = fields[admin4code];
+      GeonamesFeature feature = new GeonamesFeature(text);
 
       Long adminsNumber =
-          Stream.of(admin1Value, admin2Value, admin3Value, admin4Value)
+          Stream.of(
+                  feature.getAdmin1Value(),
+                  feature.getAdmin2Value(),
+                  feature.getAdmin3Value(),
+                  feature.getAdmin4Value())
               .filter(admin -> isNotEmpty(admin))
               .count();
 
-      if (adminsNumber.intValue() == 1 && featureCodeValue.equals("ADM1")) {
-        adminsToIdsMap.put(country + admin1Value, id);
+      if (adminsNumber.intValue() == 1 && feature.getFeatureCodeField().equals("ADM1")) {
+        adminsToIdsMap.put(feature.getCountry() + feature.getAdmin1Value(), feature.getId());
       }
-      if (adminsNumber.intValue() == 2 && featureCodeValue.equals("ADM2")) {
-        adminsToIdsMap.put(country + admin1Value + admin2Value, id);
+      if (adminsNumber.intValue() == 2 && feature.getFeatureCodeField().equals("ADM2")) {
+        adminsToIdsMap.put(
+            feature.getCountry() + feature.getAdmin1Value() + feature.getAdmin2Value(),
+            feature.getId());
       }
-      if (adminsNumber.intValue() == 3 && featureCodeValue.equals("ADM3")) {
-        adminsToIdsMap.put(country + admin1Value + admin2Value + admin3Value, id);
+      if (adminsNumber.intValue() == 3 && feature.getFeatureCodeField().equals("ADM3")) {
+        adminsToIdsMap.put(
+            feature.getCountry()
+                + feature.getAdmin1Value()
+                + feature.getAdmin2Value()
+                + feature.getAdmin3Value(),
+            feature.getId());
       }
-      if (adminsNumber.intValue() == 4 && featureCodeValue.equals("ADM4")) {
-        adminsToIdsMap.put(country + admin1Value + admin2Value + admin3Value + admin4Value, id);
+      if (adminsNumber.intValue() == 4 && feature.getFeatureCodeField().equals("ADM4")) {
+        adminsToIdsMap.put(
+            feature.getCountry()
+                + feature.getAdmin1Value()
+                + feature.getAdmin2Value()
+                + feature.getAdmin3Value()
+                + feature.getAdmin4Value(),
+            feature.getId());
       }
     }
     it.close();
