@@ -1,7 +1,6 @@
-package convertion;
+package conversion;
 
 import com.google.common.collect.ArrayListMultimap;
-import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Multimap;
 import java.nio.charset.StandardCharsets;
 import java.util.Set;
@@ -10,14 +9,10 @@ import lombok.experimental.FieldDefaults;
 import namespaces.Namespaces;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.LineIterator;
-import org.eclipse.rdf4j.model.IRI;
 import org.eclipse.rdf4j.model.Literal;
 import org.eclipse.rdf4j.model.Namespace;
 import org.eclipse.rdf4j.model.Statement;
-import org.eclipse.rdf4j.model.impl.SimpleNamespace;
 import org.eclipse.rdf4j.model.impl.SimpleValueFactory;
-import org.eclipse.rdf4j.model.vocabulary.DCTERMS;
-import org.eclipse.rdf4j.model.vocabulary.SKOS;
 import org.eclipse.rdf4j.model.vocabulary.XSD;
 import org.eclipse.rdf4j.rio.turtle.TurtleWriter;
 import org.mapdb.DB;
@@ -155,7 +150,7 @@ public class GeonamesProducer {
       count++;
 
       if (count % 100000 == 0) {
-        logger.info("Passed " + count);
+        logger.info("Processed %s altNames", count);
       }
     }
     it.close();
@@ -167,7 +162,7 @@ public class GeonamesProducer {
     return NS_GEONAMES_INSTANCES + code + "/";
   }
 
-  private GeonamesProducer collectParents() throws Exception {
+  protected GeonamesProducer collectParents() throws Exception {
 
     logger.info("Loading parents");
 
@@ -210,7 +205,7 @@ public class GeonamesProducer {
           // progress
           counter.incrementAndGet();
           if (counter.get() % 100000 == 0) {
-            logger.info("Passed " + counter);
+            logger.info("Processed %s features", counter);
           }
           boolean isDescriptionOfCountry = feature.getFeatureCodeField().startsWith("A.PCLI");
 
@@ -391,7 +386,7 @@ public class GeonamesProducer {
     return this;
   }
 
-  private GeonamesProducer populateCodes() throws IOException {
+  protected GeonamesProducer populateCodes() throws IOException {
 
     LineIterator it = FileUtils.lineIterator(new File(input_source, "allCountries.txt"), "UTF-8");
 

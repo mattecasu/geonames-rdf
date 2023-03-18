@@ -1,4 +1,4 @@
-package convertion;
+package conversion;
 
 import static namespaces.Namespaces.NS_GEONAMES_INSTANCES;
 import static org.eclipse.rdf4j.model.util.Values.iri;
