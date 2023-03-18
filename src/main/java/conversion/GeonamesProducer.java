@@ -5,15 +5,12 @@ import com.google.common.collect.Multimap;
 import java.nio.charset.StandardCharsets;
 import java.util.Set;
 import lombok.experimental.Accessors;
-import lombok.experimental.FieldDefaults;
 import namespaces.Namespaces;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.LineIterator;
 import org.eclipse.rdf4j.model.Literal;
 import org.eclipse.rdf4j.model.Namespace;
 import org.eclipse.rdf4j.model.Statement;
-import org.eclipse.rdf4j.model.Triple;
-import org.eclipse.rdf4j.model.impl.SimpleValueFactory;
 import org.eclipse.rdf4j.model.vocabulary.XSD;
 import org.eclipse.rdf4j.rio.turtle.TurtleWriter;
 import org.mapdb.DB;
@@ -33,8 +30,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 
 import static com.google.common.collect.Maps.newHashMap;
-import static java.nio.file.Files.newOutputStream;
-import static lombok.AccessLevel.PRIVATE;
 import static namespaces.Namespaces.GN_ONTO;
 import static namespaces.Namespaces.NS_CUSTOM;
 import static namespaces.Namespaces.NS_DCTERMS;
@@ -45,7 +40,6 @@ import static org.apache.commons.lang3.StringUtils.isNotEmpty;
 import static org.eclipse.rdf4j.model.util.Statements.statement;
 import static org.eclipse.rdf4j.model.util.Values.iri;
 import static org.eclipse.rdf4j.model.util.Values.literal;
-import static org.eclipse.rdf4j.model.util.Values.triple;
 
 /*
  * inspired by https://github.com/europeana/tools/tree/master/trunk/annocultor/converters/geonames
@@ -68,8 +62,6 @@ public class GeonamesProducer {
 
   ConcurrentMap<String, String> adminsToIdsMap;
   static final Logger logger = LoggerFactory.getLogger(GeonamesProducer.class);
-
-  //  SimpleValueFactory factory = SimpleValueFactory.getInstance();
 
   public GeonamesProducer(String input_source, String output) {
     this.input_source = input_source;
