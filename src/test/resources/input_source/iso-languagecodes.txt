@@ -1,0 +1,10 @@
+ISO 639-3	ISO 639-2	ISO 639-1	Language Name
+	afa		Afro-Asiatic languages
+	alg		Algonquian languages
+	apa		Apache languages
+	art		Artificial languages
+	ath		Athapascan languages
+	aus		Australian languages
+	bad		Banda languages
+	bai		Bamileke languages
+	bat		Baltic languages

@@ -46,16 +46,13 @@ import static org.apache.commons.lang3.StringUtils.isNotEmpty;
  * inspired by https://github.com/europeana/tools/tree/master/trunk/annocultor/converters/geonames
  */
 
-@FieldDefaults(level = PRIVATE)
 @Accessors(chain = true)
 public class GeonamesProducer {
 
   private final Set<Namespace> namespaces = Namespaces.getNamespaces();
 
-  // indexes
-
-  static final String input_source = "input_source";
-  static final String output = "output";
+  private String input_source;
+  private String output;
 
   private Multimap<String, String> links = ArrayListMultimap.create();
   private Multimap<String, String> broaders = ArrayListMultimap.create();
@@ -69,7 +66,9 @@ public class GeonamesProducer {
 
   SimpleValueFactory factory = SimpleValueFactory.getInstance();
 
-  public GeonamesProducer() {
+  public GeonamesProducer(String input_source, String output) {
+    this.input_source = input_source;
+    this.output = output;
     IoUtils.createDir(output);
     DB db = DBMaker.fileDB(output + "/mapFile").make();
     adminsToIdsMap = db.hashMap("map", Serializer.STRING, Serializer.STRING).create();
@@ -99,7 +98,7 @@ public class GeonamesProducer {
     writer.handleStatement(triple);
   }
 
-  private GeonamesProducer labels() throws Exception {
+  protected GeonamesProducer labels() throws Exception {
     TurtleWriter writer = new TurtleWriter(newOutputStream(Paths.get(output, "altLabels.ttl")));
 
     writer.startRDF();
@@ -189,7 +188,7 @@ public class GeonamesProducer {
     return this;
   }
 
-  private GeonamesProducer features() throws Exception {
+  protected GeonamesProducer features() throws Exception {
     logger.info("Parsing features");
 
     //     createDirsForContinents();
@@ -434,6 +433,10 @@ public class GeonamesProducer {
   }
 
   public static void main(String... args) throws Exception {
-    new GeonamesProducer().populateCodes().collectParents().labels().features();
+    new GeonamesProducer("input_source", "output")
+        .populateCodes()
+        .collectParents()
+        .labels()
+        .features();
   }
 }

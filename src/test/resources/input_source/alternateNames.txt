@@ -1,0 +1,10 @@
+1282063	2986043		Pic du Port				
+4274490	2986043		Pic de Font Blanca				
+1284819	2994701		Roc Mélé				
+1284820	2994701		Roc Meler				
+4285256	3007683		Pic des Langounelles				
+1291197	3017832		Pic de les Abelletes				
+4290387	3017832		Pic de la Font-Nègre				
+1291198	3017833		Estany de les Abelletes				
+4290388	3017833		Étang de Font-Nègre				
+1292912	3023203		Port Vieux de la Coume d’Ose				

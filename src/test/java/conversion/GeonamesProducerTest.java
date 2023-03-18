@@ -1,9 +1,18 @@
-package conversion;import convertion.GeonamesProducer;import java.io.IOException;
+package conversion;
+
+import java.io.IOException;
+import org.junit.Ignore;
+import org.junit.Test;
 
 public class GeonamesProducerTest {
 
-  public void test()throws IOException {
-    new GeonamesProducer().populateCodes().collectParents().labels().features();
+  @Test
+  @Ignore
+  public void test() throws Exception {
+    new GeonamesProducer("src/test/resources/input_source", "src/test/resources/output")
+        .populateCodes()
+        .collectParents()
+        .labels()
+        .features();
   }
-
 }
