@@ -99,7 +99,8 @@ public class GeonamesProducer {
   }
 
   protected GeonamesProducer labels() throws Exception {
-    TurtleWriter writer = new TurtleWriter(newOutputStream(Paths.get(output, "altLabels.ttl")));
+
+    TurtleWriter writer = IoUtils.getWriter(output + "/altLabels.ttl");
 
     writer.startRDF();
 
