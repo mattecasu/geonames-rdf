@@ -1,35 +1,8 @@
 package conversion;
 
-import com.google.common.collect.ArrayListMultimap;
-import com.google.common.collect.Multimap;
-import java.nio.charset.StandardCharsets;
-import java.util.Set;
-import lombok.experimental.Accessors;
-import namespaces.Namespaces;
-import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.LineIterator;
-import org.eclipse.rdf4j.model.Literal;
-import org.eclipse.rdf4j.model.Namespace;
-import org.eclipse.rdf4j.model.Statement;
-import org.eclipse.rdf4j.model.vocabulary.XSD;
-import org.eclipse.rdf4j.rio.turtle.TurtleWriter;
-import org.mapdb.DB;
-import org.mapdb.DBMaker;
-import org.mapdb.Serializer;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import java.io.File;
-import java.io.IOException;
-import java.nio.charset.Charset;
-import java.nio.file.Files;
-import java.nio.file.Paths;
-import java.util.Map;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Stream;
-
+import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Maps.newHashMap;
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static namespaces.Namespaces.GN_ONTO;
 import static namespaces.Namespaces.NS_CUSTOM;
 import static namespaces.Namespaces.NS_DCTERMS;
@@ -41,6 +14,35 @@ import static org.eclipse.rdf4j.model.util.Statements.statement;
 import static org.eclipse.rdf4j.model.util.Values.iri;
 import static org.eclipse.rdf4j.model.util.Values.literal;
 
+import com.google.common.collect.Multimap;
+import com.google.common.collect.MultimapBuilder;
+import com.google.common.collect.Multimaps;
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.util.Collection;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Stream;
+import lombok.experimental.Accessors;
+import namespaces.Namespaces;
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.LineIterator;
+import org.apache.commons.lang3.StringUtils;
+import org.eclipse.rdf4j.model.Literal;
+import org.eclipse.rdf4j.model.Namespace;
+import org.eclipse.rdf4j.model.Statement;
+import org.eclipse.rdf4j.model.vocabulary.XSD;
+import org.eclipse.rdf4j.rio.turtle.TurtleWriter;
+import org.mapdb.DB;
+import org.mapdb.DBMaker;
+import org.mapdb.Serializer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 /*
  * inspired by https://github.com/europeana/tools/tree/master/trunk/annocultor/converters/geonames
  */
@@ -50,18 +52,21 @@ public class GeonamesProducer {
 
   private final Set<Namespace> namespaces = Namespaces.getNamespaces();
 
-  private String input_source;
-  private String output;
+  private final String input_source;
+  private final String output;
 
-  private Multimap<String, String> links = ArrayListMultimap.create();
-  private Multimap<String, String> broaders = ArrayListMultimap.create();
-  private Multimap<String, String> broadersAdm = ArrayListMultimap.create();
+  private final Multimap<String, String> links =
+      Multimaps.synchronizedListMultimap(MultimapBuilder.hashKeys().arrayListValues().build());
+  private final Multimap<String, String> broaders =
+      Multimaps.synchronizedListMultimap(MultimapBuilder.hashKeys().arrayListValues().build());
+  private final Multimap<String, String> broadersAdm =
+      Multimaps.synchronizedListMultimap(MultimapBuilder.hashKeys().arrayListValues().build());
 
-  Map<String, TurtleWriter> files = newHashMap();
+  final Map<String, TurtleWriter> files = newHashMap();
   TurtleWriter allCountries = null;
 
-  ConcurrentMap<String, String> adminsToIdsMap;
-  static final Logger logger = LoggerFactory.getLogger(GeonamesProducer.class);
+  final ConcurrentMap<String, String> adminsToIdsMap;
+  private static final Logger logger = LoggerFactory.getLogger(GeonamesProducer.class);
 
   public GeonamesProducer(String input_source, String output) {
     this.input_source = input_source;
@@ -102,52 +107,47 @@ public class GeonamesProducer {
     writer.startRDF();
 
     logger.info("Loading alt names ");
-    long count = 0;
-    LineIterator it = FileUtils.lineIterator(new File(input_source, "alternateNames.txt"), "UTF-8");
+    var count = new AtomicInteger();
+    try (Stream<String> lines = Files.lines(Paths.get(input_source, "alternateNames.txt"), UTF_8)) {
+      lines
+          .parallel()
+          .forEach(
+              l -> {
+                logProgress(count, "altNames");
+                String[] fields = l.split("\t");
+                String code = fields[1];
+                String lang = fields[2];
+                String label = fields[3];
 
-    String text;
+                boolean isPreferred = fields.length > 4 && fields[4].equals("1");
+                boolean isShort = fields.length > 5 && fields[5].equals("1");
+                boolean isColloquial = fields.length > 6 && fields[6].equals("1");
+                boolean isHistoric = fields.length > 7 && fields[7].equals("1");
 
-    while (it.hasNext()) {
-      text = it.nextLine();
+                if ("link".equals(lang)) {
+                  // wikipedia links
+                  links.put(code, label);
+                } else {
+                  if (lang.length() < 3) {
 
-      String[] fields = text.split("\t");
-      String code = fields[1];
-      String lang = fields[2];
-      String label = fields[3];
+                    String property = GN_ONTO + "alternateName";
+                    property = isPreferred ? GN_ONTO + "officialName" : property;
+                    property = isShort ? GN_ONTO + "shortName" : property;
+                    property = isColloquial ? GN_ONTO + "colloquialName" : property;
+                    property = isHistoric ? GN_ONTO + "historicalName" : property;
 
-      boolean isPreferred = fields.length > 4 && fields[4].equals("1");
-      boolean isShort = fields.length > 5 && fields[5].equals("1");
-      boolean isColloquial = fields.length > 6 && fields[6].equals("1");
-      boolean isHistoric = fields.length > 7 && fields[7].equals("1");
+                    Literal literal = lang.equals("") ? literal(label) : literal(label, lang);
 
-      if ("link".equals(lang)) {
-        // wikipedia links
-        links.put(code, label);
-      } else {
-        if (lang.length() < 3) {
+                    Statement st =
+                        statement(iri(codeToUri(code)), iri(property), literal(literal), null);
+                    writer.handleStatement(st);
 
-          String property = GN_ONTO + "alternateName";
-          property = isPreferred ? GN_ONTO + "officialName" : property;
-          property = isShort ? GN_ONTO + "shortName" : property;
-          property = isColloquial ? GN_ONTO + "colloquialName" : property;
-          property = isHistoric ? GN_ONTO + "historicalName" : property;
-
-          Literal literal = lang.equals("") ? literal(label) : literal(label, lang);
-
-          Statement st = statement(iri(codeToUri(code)), iri(property), literal(literal), null);
-          writer.handleStatement(st);
-
-        } else {
-          // postcodes
-        }
-      }
-      count++;
-
-      if (count % 100000 == 0) {
-        logger.info(String.format("Processed %s altNames", count));
-      }
+                  } else {
+                    // postcodes
+                  }
+                }
+              });
     }
-    it.close();
     writer.endRDF();
     return this;
   }
@@ -160,232 +160,68 @@ public class GeonamesProducer {
 
     logger.info("Loading parents");
 
-    Stream<String> it =
-        Files.lines(Paths.get(input_source, "hierarchy.txt"), Charset.forName("UTF-8"));
+    try (Stream<String> lines = Files.lines(Paths.get(input_source, "hierarchy.txt"), UTF_8)) {
+      lines.forEach(
+          line -> {
+            String[] fields = line.split("\t");
+            String parent = fields[0];
+            String child = fields[1];
+            boolean adm = false;
+            if (fields.length > 2) {
+              adm = fields[2].equals("ADM");
+            }
+            if (adm) {
+              broadersAdm.put(child, parent);
+            } else {
+              broaders.put(child, parent);
+            }
+          });
+    }
 
-    it.forEach(
-        line -> {
-          String[] fields = line.split("\t");
-          String parent = fields[0];
-          String child = fields[1];
-          boolean adm = false;
-          if (fields.length > 2) {
-            adm = fields[2].equals("ADM");
-          }
-          if (adm) {
-            broadersAdm.put(child, parent);
-          } else {
-            broaders.put(child, parent);
-          }
-        });
-
-    it.close();
     return this;
   }
 
-  protected GeonamesProducer features() throws Exception {
+  protected GeonamesProducer features() {
     logger.info("Parsing features");
 
     //     createDirsForContinents();
 
-    final AtomicInteger counter = new AtomicInteger(0);
-    Stream<String> it =
-        Files.lines(Paths.get(input_source, "allCountries.txt"), StandardCharsets.UTF_8);
+    var counter = new AtomicInteger(0);
 
-    it.forEach(
-        line -> {
-          GeonamesFeature feature = new GeonamesFeature(line);
-
-          // progress
-          counter.incrementAndGet();
-          if (counter.get() % 100000 == 0) {
-            logger.info(String.format("Processed %s features", counter));
-          }
-          boolean isDescriptionOfCountry = feature.getFeatureCodeField().startsWith("A.PCLI");
-
-          if (isNotEmpty(feature.getNameValue())) {
-            Statement triple =
-                statement(
-                    feature.getSubject(),
-                    iri(GN_ONTO + "name"),
-                    literal(feature.getNameValue()),
-                    null);
-            write(feature.getCountry(), triple, isDescriptionOfCountry);
-          }
-
-          if (feature.getPopulationValue().length() > 1) {
-            Statement triple =
-                statement(
-                    feature.getSubject(),
-                    iri(GN_ONTO + "population"),
-                    literal(feature.getPopulationValue(), XSD.INTEGER),
-                    null);
-            write(feature.getCountry(), triple, isDescriptionOfCountry);
-          }
-          if (isNotEmpty(feature.getLongValue())) {
-            Statement triple =
-                statement(
-                    feature.getSubject(),
-                    iri(NS_WGS_SCHEMA + "long"),
-                    literal(feature.getLongValue(), XSD.DECIMAL),
-                    null);
-            write(feature.getCountry(), triple, isDescriptionOfCountry);
-          }
-          if (isNotEmpty(feature.getLatValue())) {
-            Statement triple =
-                statement(
-                    feature.getSubject(),
-                    iri(NS_WGS_SCHEMA + "lat"),
-                    literal(feature.getLatValue(), XSD.DECIMAL),
-                    null);
-            write(feature.getCountry(), triple, isDescriptionOfCountry);
-          }
-          if (isNotEmpty(feature.getAltValue())) {
-            Statement triple =
-                statement(
-                    feature.getSubject(),
-                    iri(NS_WGS_SCHEMA + "alt"),
-                    literal(feature.getAltValue(), XSD.DECIMAL),
-                    null);
-            write(feature.getCountry(), triple, isDescriptionOfCountry);
-          }
-          if (isNotEmpty(feature.getElevationValue())) {
-            Statement triple =
-                statement(
-                    feature.getSubject(),
-                    iri(NS_CUSTOM + "gtopo30"),
-                    literal(feature.getElevationValue(), XSD.DECIMAL),
-                    null);
-            write(feature.getCountry(), triple, isDescriptionOfCountry);
-          }
-          if (isNotEmpty(feature.getFeatureClassField())) {
-            Statement triple =
-                statement(
-                    feature.getSubject(),
-                    iri(GN_ONTO + "featureClass"),
-                    iri(GN_ONTO + feature.getFeatureClassField()),
-                    null);
-            write(feature.getCountry(), triple, isDescriptionOfCountry);
-          }
-          if (isNotEmpty(feature.getFeatureCodeField())) {
-            Statement triple =
-                statement(
-                    feature.getSubject(),
-                    iri(GN_ONTO + "featureCode"),
-                    iri(GN_ONTO + feature.getFeatureCodeField()),
-                    null);
-            write(feature.getCountry(), triple, isDescriptionOfCountry);
-          }
-          if (isNotEmpty(feature.getCountry())) {
-            Statement triple =
-                statement(
-                    feature.getSubject(),
-                    iri(GN_ONTO + "countryCode"),
-                    literal(feature.getCountry()),
-                    null);
-            write(feature.getCountry(), triple, isDescriptionOfCountry);
-          }
-
-          if (isNotEmpty(feature.getTimezoneValue())) {
-            Statement triple =
-                statement(
-                    feature.getSubject(),
-                    iri(NS_CUSTOM + "timezone"),
-                    literal(feature.getTimezoneValue()),
-                    null);
-            write(feature.getCountry(), triple, isDescriptionOfCountry);
-          }
-          if (isNotEmpty(feature.getModificationDateValue())) {
-            Statement triple =
-                statement(
-                    feature.getSubject(),
-                    iri(NS_DCTERMS + "modified"),
-                    literal(feature.getModificationDateValue(), XSD.DATE),
-                    null);
-            write(feature.getCountry(), triple, isDescriptionOfCountry);
-          }
-
-          if (isNotEmpty(feature.getAdmin2Value())
-              && feature.getFeatureCodeField().equals("A.ADM2")) {
-            Statement triple =
-                statement(
-                    feature.getSubject(),
-                    iri(NS_CUSTOM + "admin2"),
-                    literal(feature.getAdmin2Value()),
-                    null);
-            write(feature.getCountry(), triple, isDescriptionOfCountry);
-          }
-
-          if (links.containsKey(feature.getId())) {
-            for (String link : links.get(feature.getId())) {
-              String property =
-                  link.contains("wikipedia") ? GN_ONTO + "wikipediaArticle" : NS_FOAF + "page";
-              Statement triple =
-                  statement(feature.getSubject(), iri(property), literal(link), null);
-              write(feature.getCountry(), triple, isDescriptionOfCountry);
-            }
-            links.removeAll(feature.getId());
-          }
-
-          if (broaders.containsKey(feature.getId())) {
-            for (Object broaderCode : broaders.get(feature.getId())) {
-              String broader = (String) broaderCode;
-              Statement triple =
-                  statement(
-                      feature.getSubject(),
-                      iri(GN_ONTO + "locatedIn"),
-                      iri(codeToUri(broader)),
-                      null);
-              write(feature.getCountry(), triple, isDescriptionOfCountry);
-            }
-            broaders.removeAll(feature.getId());
-          }
-
-          if (broadersAdm.containsKey(feature.getId())) {
-            for (Object broaderCode : broadersAdm.get(feature.getId())) {
-              String broader = (String) broaderCode;
-              Statement triple =
-                  statement(
-                      feature.getSubject(),
-                      iri(GN_ONTO + "parentFeature"),
-                      iri(codeToUri(broader)),
-                      null);
-              write(feature.getCountry(), triple, isDescriptionOfCountry);
-            }
-            broadersAdm.removeAll(feature.getId());
-          }
-
-          // fields admin1... admin4
-          String denormalizedAdmins =
-              feature.getCountry()
-                  + feature.getAdmin1Value()
-                  + feature.getAdmin2Value()
-                  + feature.getAdmin3Value()
-                  + feature.getAdmin4Value();
-
-          if (adminsToIdsMap.containsKey(denormalizedAdmins)) {
-            String father = codeToUri(adminsToIdsMap.get(denormalizedAdmins));
-
-            if (!father.equals(feature.getUri())) {
-              Statement triple =
-                  statement(
-                      iri(feature.getUri()), iri(GN_ONTO + "parentFeature"), iri(father), null);
-              write(feature.getCountry(), triple, isDescriptionOfCountry);
-            }
-          }
-        });
-
-    it.close();
+    try (Stream<String> lines = Files.lines(Paths.get(input_source, "allCountries.txt"), UTF_8)) {
+      lines
+          .parallel()
+          .forEach(
+              line -> {
+                GeonamesFeature feature = new GeonamesFeature(line);
+                logProgress(counter, "features");
+                boolean isDescriptionOfCountry = feature.getFeatureCodeField().startsWith("A.PCLI");
+                getStatements(feature)
+                    .forEach(st -> write(feature.getCountry(), st, isDescriptionOfCountry));
+              });
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
 
     logger.info("Finished conversion, flushing and closing output files");
 
     files.keySet().stream()
-        .filter(country -> files.containsKey(country))
-        .forEach(country -> files.get(country.toString()).endRDF());
+        .filter(files::containsKey)
+        .forEach(country -> files.get(country).endRDF());
 
     if (allCountries != null) {
       allCountries.endRDF();
     }
+    files
+        .values()
+        .forEach(
+            w -> {
+              try {
+                w.getWriter().close();
+              } catch (IOException e) {
+                throw new RuntimeException(e);
+              }
+            });
     return this;
   }
 
@@ -403,7 +239,7 @@ public class GeonamesProducer {
                   feature.getAdmin2Value(),
                   feature.getAdmin3Value(),
                   feature.getAdmin4Value())
-              .filter(admin -> isNotEmpty(admin))
+              .filter(StringUtils::isNotEmpty)
               .count();
 
       if (adminsNumber.intValue() == 1 && feature.getFeatureCodeField().equals("ADM1")) {
@@ -442,5 +278,181 @@ public class GeonamesProducer {
         .collectParents()
         .labels()
         .features();
+  }
+
+  private Collection<Statement> getStatements(GeonamesFeature feature) {
+
+    Collection<Statement> statements = newArrayList();
+
+    if (isNotEmpty(feature.getNameValue())) {
+      Statement triple =
+          statement(
+              feature.getSubject(), iri(GN_ONTO + "name"), literal(feature.getNameValue()), null);
+      statements.add(triple);
+    }
+
+    if (feature.getPopulationValue().length() > 1) {
+      Statement triple =
+          statement(
+              feature.getSubject(),
+              iri(GN_ONTO + "population"),
+              literal(feature.getPopulationValue(), XSD.INTEGER),
+              null);
+      statements.add(triple);
+    }
+    if (isNotEmpty(feature.getLongValue())) {
+      Statement triple =
+          statement(
+              feature.getSubject(),
+              iri(NS_WGS_SCHEMA + "long"),
+              literal(feature.getLongValue(), XSD.DECIMAL),
+              null);
+      statements.add(triple);
+    }
+    if (isNotEmpty(feature.getLatValue())) {
+      Statement triple =
+          statement(
+              feature.getSubject(),
+              iri(NS_WGS_SCHEMA + "lat"),
+              literal(feature.getLatValue(), XSD.DECIMAL),
+              null);
+      statements.add(triple);
+    }
+    if (isNotEmpty(feature.getAltValue())) {
+      Statement triple =
+          statement(
+              feature.getSubject(),
+              iri(NS_WGS_SCHEMA + "alt"),
+              literal(feature.getAltValue(), XSD.DECIMAL),
+              null);
+      statements.add(triple);
+    }
+    if (isNotEmpty(feature.getElevationValue())) {
+      Statement triple =
+          statement(
+              feature.getSubject(),
+              iri(NS_CUSTOM + "gtopo30"),
+              literal(feature.getElevationValue(), XSD.DECIMAL),
+              null);
+      statements.add(triple);
+    }
+    if (isNotEmpty(feature.getFeatureClassField())) {
+      Statement triple =
+          statement(
+              feature.getSubject(),
+              iri(GN_ONTO + "featureClass"),
+              iri(GN_ONTO + feature.getFeatureClassField()),
+              null);
+      statements.add(triple);
+    }
+    if (isNotEmpty(feature.getFeatureCodeField())) {
+      Statement triple =
+          statement(
+              feature.getSubject(),
+              iri(GN_ONTO + "featureCode"),
+              iri(GN_ONTO + feature.getFeatureCodeField()),
+              null);
+      statements.add(triple);
+    }
+    if (isNotEmpty(feature.getCountry())) {
+      Statement triple =
+          statement(
+              feature.getSubject(),
+              iri(GN_ONTO + "countryCode"),
+              literal(feature.getCountry()),
+              null);
+      statements.add(triple);
+    }
+
+    if (isNotEmpty(feature.getTimezoneValue())) {
+      Statement triple =
+          statement(
+              feature.getSubject(),
+              iri(NS_CUSTOM + "timezone"),
+              literal(feature.getTimezoneValue()),
+              null);
+      statements.add(triple);
+    }
+    if (isNotEmpty(feature.getModificationDateValue())) {
+      Statement triple =
+          statement(
+              feature.getSubject(),
+              iri(NS_DCTERMS + "modified"),
+              literal(feature.getModificationDateValue(), XSD.DATE),
+              null);
+      statements.add(triple);
+    }
+
+    if (isNotEmpty(feature.getAdmin2Value()) && feature.getFeatureCodeField().equals("A.ADM2")) {
+      Statement triple =
+          statement(
+              feature.getSubject(),
+              iri(NS_CUSTOM + "admin2"),
+              literal(feature.getAdmin2Value()),
+              null);
+      statements.add(triple);
+    }
+
+    if (links.containsKey(feature.getId())) {
+      for (String link : links.get(feature.getId())) {
+        String property =
+            link.contains("wikipedia") ? GN_ONTO + "wikipediaArticle" : NS_FOAF + "page";
+        Statement triple = statement(feature.getSubject(), iri(property), literal(link), null);
+        statements.add(triple);
+      }
+      links.removeAll(feature.getId());
+    }
+
+    if (broaders.containsKey(feature.getId())) {
+      for (String broaderCode : broaders.get(feature.getId())) {
+        Statement triple =
+            statement(
+                feature.getSubject(),
+                iri(GN_ONTO + "locatedIn"),
+                iri(codeToUri(broaderCode)),
+                null);
+        statements.add(triple);
+      }
+      broaders.removeAll(feature.getId());
+    }
+
+    if (broadersAdm.containsKey(feature.getId())) {
+      for (String broaderCode : broadersAdm.get(feature.getId())) {
+        Statement triple =
+            statement(
+                feature.getSubject(),
+                iri(GN_ONTO + "parentFeature"),
+                iri(codeToUri(broaderCode)),
+                null);
+        statements.add(triple);
+      }
+      broadersAdm.removeAll(feature.getId());
+    }
+
+    // fields admin1... admin4
+    String denormalizedAdmins =
+        feature.getCountry()
+            + feature.getAdmin1Value()
+            + feature.getAdmin2Value()
+            + feature.getAdmin3Value()
+            + feature.getAdmin4Value();
+
+    if (adminsToIdsMap.containsKey(denormalizedAdmins)) {
+      String father = codeToUri(adminsToIdsMap.get(denormalizedAdmins));
+
+      if (!father.equals(feature.getUri())) {
+        Statement triple =
+            statement(iri(feature.getUri()), iri(GN_ONTO + "parentFeature"), iri(father), null);
+        statements.add(triple);
+      }
+    }
+    return statements;
+  }
+
+  private void logProgress(AtomicInteger counter, String type) {
+    counter.incrementAndGet();
+    if (counter.get() % 100000 == 0) {
+      logger.info(String.format("Processed %s %s", counter, type));
+    }
   }
 }

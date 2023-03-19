@@ -18,9 +18,11 @@ import static conversion.GeonamesHeaders.population;
 import static conversion.GeonamesHeaders.timezone;
 import static namespaces.Namespaces.NS_GEONAMES_INSTANCES;
 import static org.eclipse.rdf4j.model.util.Values.iri;
+import java.util.Collection;
 import lombok.Getter;
 import lombok.experimental.Accessors;
 import org.eclipse.rdf4j.model.IRI;
+import org.eclipse.rdf4j.model.Statement;
 
 @Accessors(chain = true)
 @Getter
