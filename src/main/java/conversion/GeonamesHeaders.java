@@ -9,7 +9,7 @@ public class GeonamesHeaders {
   public static final int latitude = 4; // latitude (wgs84)
   public static final int longitude = 5; // longitude (wgs84)
   public static final int featureClass = 6;
-  public static final int featureCode = 7;
+  public static final int featureCode = 7; // http://www.geonames.org/export/codes.html
   public static final int countryCode = 8; // ISO-3166 2-letter country code, 2 characters
   // private static final int cc2 = 9; // alternate country codes, comma separated, ISO-3166
   public static final int admin1code = 10; // fipscode, see file admin1Codes.txt for names
