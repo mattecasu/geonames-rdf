@@ -1,9 +1,11 @@
 package conversion;
 
 import static java.nio.file.Files.newOutputStream;
+
 import java.io.IOException;
 import java.nio.file.Files;
-import java.nio.file.Path;import java.nio.file.Paths;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import org.eclipse.rdf4j.rio.turtle.TurtleWriter;
 
 public class IoUtils {
