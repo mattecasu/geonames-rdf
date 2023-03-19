@@ -233,24 +233,29 @@ public class GeonamesProducer {
       String text = it.nextLine();
       GeonamesFeature feature = new GeonamesFeature(text);
 
-      Long adminsNumber =
-          Stream.of(
-                  feature.getAdmin1Value(),
-                  feature.getAdmin2Value(),
-                  feature.getAdmin3Value(),
-                  feature.getAdmin4Value())
-              .filter(StringUtils::isNotEmpty)
-              .count();
+      int adminsNumber =
+          (int)
+              Stream.of(
+                      feature.getAdmin1Value(),
+                      feature.getAdmin2Value(),
+                      feature.getAdmin3Value(),
+                      feature.getAdmin4Value())
+                  .filter(StringUtils::isNotEmpty)
+                  .count();
 
-      if (adminsNumber.intValue() == 1 && feature.getFeatureCodeField().equals("ADM1")) {
+      if (adminsNumber == 1 && feature.getFeatureCodeField().equals("A.PCLI")) {
         adminsToIdsMap.put(feature.getCountry() + feature.getAdmin1Value(), feature.getId());
       }
-      if (adminsNumber.intValue() == 2 && feature.getFeatureCodeField().equals("ADM2")) {
+
+      if (adminsNumber == 1 && feature.getFeatureCodeField().equals("A.ADM1")) {
+        adminsToIdsMap.put(feature.getCountry() + feature.getAdmin1Value(), feature.getId());
+      }
+      if (adminsNumber == 2 && feature.getFeatureCodeField().equals("A.ADM2")) {
         adminsToIdsMap.put(
             feature.getCountry() + feature.getAdmin1Value() + feature.getAdmin2Value(),
             feature.getId());
       }
-      if (adminsNumber.intValue() == 3 && feature.getFeatureCodeField().equals("ADM3")) {
+      if (adminsNumber == 3 && feature.getFeatureCodeField().equals("A.ADM3")) {
         adminsToIdsMap.put(
             feature.getCountry()
                 + feature.getAdmin1Value()
@@ -258,7 +263,7 @@ public class GeonamesProducer {
                 + feature.getAdmin3Value(),
             feature.getId());
       }
-      if (adminsNumber.intValue() == 4 && feature.getFeatureCodeField().equals("ADM4")) {
+      if (adminsNumber == 4 && feature.getFeatureCodeField().equals("A.ADM4")) {
         adminsToIdsMap.put(
             feature.getCountry()
                 + feature.getAdmin1Value()
@@ -270,14 +275,6 @@ public class GeonamesProducer {
     }
     it.close();
     return this;
-  }
-
-  public static void main(String... args) throws Exception {
-    new GeonamesProducer("input_source", "output")
-        .populateCodes()
-        .collectParents()
-        .labels()
-        .features();
   }
 
   private Collection<Statement> getStatements(GeonamesFeature feature) {
@@ -454,5 +451,13 @@ public class GeonamesProducer {
     if (counter.get() % 100000 == 0) {
       logger.info(String.format("Processed %s %s", counter, type));
     }
+  }
+
+  public static void main(String... args) throws Exception {
+    new GeonamesProducer("input_source", "output")
+        .populateCodes()
+        .collectParents()
+        //        .labels()
+        .features();
   }
 }
