@@ -457,7 +457,7 @@ public class GeonamesProducer {
     new GeonamesProducer("input_source", "output")
         .populateCodes()
         .collectParents()
-        //        .labels()
+        .labels()
         .features();
   }
 }
