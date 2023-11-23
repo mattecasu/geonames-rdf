@@ -28,11 +28,7 @@ dependencies {
     implementation "org.apache.commons:commons-lang3:${commonsLangVersion}"
     implementation "ch.qos.logback:logback-classic:${logbackVersion}"
     testImplementation "junit:junit:${jUnitVersion}"
-
-    compileOnly "org.projectlombok:lombok:${lombokVersion}"
-    annotationProcessor "org.projectlombok:lombok:${lombokVersion}"
-    testCompileOnly "org.projectlombok:lombok:${lombokVersion}"
-    testAnnotationProcessor "org.projectlombok:lombok:${lombokVersion}"
+    
 }
 
 group = 'epi.projects'
