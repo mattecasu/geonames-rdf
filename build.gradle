@@ -14,7 +14,6 @@ def rdf4jVersion = "4.3.6"
 def commonsLangVersion = "3.13.0"
 def logbackVersion = "1.4.11"
 def jUnitVersion = "4.13.2"
-def lombokVersion = "1.18.28"
 
 
 dependencies {
@@ -28,7 +27,7 @@ dependencies {
     implementation "org.apache.commons:commons-lang3:${commonsLangVersion}"
     implementation "ch.qos.logback:logback-classic:${logbackVersion}"
     testImplementation "junit:junit:${jUnitVersion}"
-    
+
 }
 
 group = 'epi.projects'
