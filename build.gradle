@@ -18,9 +18,13 @@ def lombokVersion = "1.18.28"
 
 
 dependencies {
+
+    // minimal rdf4j
+    implementation "org.eclipse.rdf4j:rdf4j-model:${rdf4jVersion}"
+    implementation "org.eclipse.rdf4j:rdf4j-rio-turtle:${rdf4jVersion}"
+
     implementation "org.mapdb:mapdb:${mapdbVersion}"
     implementation "com.google.guava:guava:${guavaVersion}"
-    implementation "org.eclipse.rdf4j:rdf4j-runtime:${rdf4jVersion}"
     implementation "org.apache.commons:commons-lang3:${commonsLangVersion}"
     implementation "ch.qos.logback:logback-classic:${logbackVersion}"
     testImplementation "junit:junit:${jUnitVersion}"
