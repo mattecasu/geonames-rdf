@@ -1,33 +1,40 @@
 plugins {
     id 'java'
+    id "io.freefair.lombok" version "8.4"
 }
 
 repositories {
     mavenLocal()
-    maven {
-        url = 'https://repo.maven.apache.org/maven2'
-    }
+    mavenCentral()
 }
 
+def mapdbVersion = "3.0.10"
+def guavaVersion = "32.1.2-jre"
+def rdf4jVersion = "4.3.6"
+def commonsLangVersion = "3.13.0"
+def logbackVersion = "1.4.11"
+def jUnitVersion = "4.13.2"
+
+
 dependencies {
+
+    // minimal rdf4j
+    implementation "org.eclipse.rdf4j:rdf4j-model:${rdf4jVersion}"
+    implementation "org.eclipse.rdf4j:rdf4j-rio-turtle:${rdf4jVersion}"
+
     implementation "org.mapdb:mapdb:${mapdbVersion}"
     implementation "com.google.guava:guava:${guavaVersion}"
-    implementation "org.eclipse.rdf4j:rdf4j-runtime:${rdf4jVersion}"
     implementation "org.apache.commons:commons-lang3:${commonsLangVersion}"
     implementation "ch.qos.logback:logback-classic:${logbackVersion}"
     testImplementation "junit:junit:${jUnitVersion}"
 
-    compileOnly "org.projectlombok:lombok:${lombokVersion}"
-    annotationProcessor "org.projectlombok:lombok:${lombokVersion}"
-    testCompileOnly "org.projectlombok:lombok:${lombokVersion}"
-    testAnnotationProcessor "org.projectlombok:lombok:${lombokVersion}"
 }
 
 group = 'epi.projects'
 version = '1.1'
 description = 'Geonames RDF Converter'
 
-task run(type: JavaExec) {
+tasks.register('run', JavaExec) {
     classpath = sourceSets.main.runtimeClasspath
-    mainClass = project.hasProperty("mainClass") ? project.getProperty("mainClass") : "conversion.GeonamesProducer"
+    mainClass = project.hasProperty("mainClass") ? project.property("mainClass").toString() : "conversion.GeonamesProducer"
 }
