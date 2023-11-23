@@ -1,13 +1,21 @@
 plugins {
     id 'java'
+    id "io.freefair.lombok" version "8.4"
 }
 
 repositories {
     mavenLocal()
-    maven {
-        url = 'https://repo.maven.apache.org/maven2'
-    }
+    mavenCentral()
 }
+
+def mapdbVersion = "3.0.10"
+def guavaVersion = "32.1.2-jre"
+def rdf4jVersion = "4.3.6"
+def commonsLangVersion = "3.13.0"
+def logbackVersion = "1.4.11"
+def jUnitVersion = "4.13.2"
+def lombokVersion = "1.18.28"
+
 
 dependencies {
     implementation "org.mapdb:mapdb:${mapdbVersion}"
