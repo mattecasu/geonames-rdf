@@ -8,7 +8,7 @@ repositories {
     mavenCentral()
 }
 
-def mapdbVersion = "3.0.10"
+def mapdbVersion = "3.1.0"
 def guavaVersion = "33.0.0-jre"
 def rdf4jVersion = "4.3.8"
 def commonsLangVersion = "3.14.0"
