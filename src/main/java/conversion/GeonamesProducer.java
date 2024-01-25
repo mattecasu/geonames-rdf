@@ -14,6 +14,7 @@ import static org.eclipse.rdf4j.model.util.Statements.statement;
 import static org.eclipse.rdf4j.model.util.Values.iri;
 import static org.eclipse.rdf4j.model.util.Values.literal;
 
+import com.google.common.collect.Collections2;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.MultimapBuilder;
 import com.google.common.collect.Multimaps;
@@ -22,6 +23,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
@@ -35,6 +37,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.eclipse.rdf4j.model.Literal;
 import org.eclipse.rdf4j.model.Namespace;
 import org.eclipse.rdf4j.model.Statement;
+import org.eclipse.rdf4j.model.vocabulary.RDF;
 import org.eclipse.rdf4j.model.vocabulary.XSD;
 import org.eclipse.rdf4j.rio.turtle.TurtleWriter;
 import org.mapdb.DB;
@@ -55,8 +58,11 @@ public class GeonamesProducer {
   private final String input_source;
   private final String output;
 
+  private final Multimap<String, Statement> labels =
+      Multimaps.synchronizedSetMultimap(MultimapBuilder.hashKeys().hashSetValues().build());
+
   private final Multimap<String, String> links =
-      Multimaps.synchronizedListMultimap(MultimapBuilder.hashKeys().arrayListValues().build());
+      Multimaps.synchronizedSetMultimap(MultimapBuilder.hashKeys().hashSetValues().build());
   private final Multimap<String, String> broaders =
       Multimaps.synchronizedListMultimap(MultimapBuilder.hashKeys().arrayListValues().build());
   private final Multimap<String, String> broadersAdm =
@@ -87,9 +93,9 @@ public class GeonamesProducer {
       allCountries.handleStatement(triple);
     }
 
+    country = country.isBlank() ? "noCountry" : country;
     TurtleWriter writer = files.get(country);
     if (writer == null) {
-      country = country.equals("") ? "noCountry" : country;
       writer = IoUtils.getWriter(output + "/" + country + ".ttl");
       files.put(country, writer);
       writer.startRDF();
@@ -100,11 +106,7 @@ public class GeonamesProducer {
     writer.handleStatement(triple);
   }
 
-  protected GeonamesProducer labels() throws Exception {
-
-    TurtleWriter writer = IoUtils.getWriter(output + "/altLabels.ttl");
-
-    writer.startRDF();
+  protected GeonamesProducer collectLabels() throws Exception {
 
     logger.info("Loading alt names ");
     var count = new AtomicInteger();
@@ -140,7 +142,7 @@ public class GeonamesProducer {
 
                     Statement st =
                         statement(iri(codeToUri(code)), iri(property), literal(literal), null);
-                    writer.handleStatement(st);
+                    labels.put(codeToUri(code), st);
 
                   } else {
                     // postcodes
@@ -148,7 +150,6 @@ public class GeonamesProducer {
                 }
               });
     }
-    writer.endRDF();
     return this;
   }
 
@@ -196,8 +197,11 @@ public class GeonamesProducer {
                 GeonamesFeature feature = new GeonamesFeature(line);
                 logProgress(counter, "features");
                 boolean isDescriptionOfCountry = feature.getFeatureCodeField().startsWith("A.PCLI");
-                getStatements(feature)
+                Stream.concat(
+                        getStatements(feature).stream(), labels.get(feature.getUri()).stream())
                     .forEach(st -> write(feature.getCountry(), st, isDescriptionOfCountry));
+                labels.removeAll(feature.getUri()); // no need anymore
+                links.removeAll(feature.getUri()); // no need anymore
               });
     } catch (IOException e) {
       throw new RuntimeException(e);
@@ -207,21 +211,26 @@ public class GeonamesProducer {
 
     files.keySet().stream()
         .filter(files::containsKey)
-        .forEach(country -> files.get(country).endRDF());
-
-    if (allCountries != null) {
-      allCountries.endRDF();
-    }
-    files
-        .values()
         .forEach(
-            w -> {
+            country -> {
+              files.get(country).endRDF();
               try {
-                w.getWriter().close();
+                files.get(country).getWriter().flush();
+                files.get(country).getWriter().close();
               } catch (IOException e) {
                 throw new RuntimeException(e);
               }
             });
+
+    if (allCountries != null) {
+      allCountries.endRDF();
+      try {
+        allCountries.getWriter().flush();
+        allCountries.getWriter().close();
+      } catch (IOException e) {
+        throw new RuntimeException(e);
+      }
+    }
     return this;
   }
 
@@ -284,7 +293,10 @@ public class GeonamesProducer {
     if (isNotEmpty(feature.getNameValue())) {
       Statement triple =
           statement(
-              feature.getSubject(), iri(GN_ONTO + "name"), literal(feature.getNameValue()), null);
+              feature.getSubject(),
+              iri(GN_ONTO + "name"),
+              literal(feature.getNameValue(), "en"),
+              null);
       statements.add(triple);
     }
 
@@ -439,10 +451,15 @@ public class GeonamesProducer {
 
       if (!father.equals(feature.getUri())) {
         Statement triple =
-            statement(iri(feature.getUri()), iri(GN_ONTO + "parentFeature"), iri(father), null);
+            statement(feature.getSubject(), iri(GN_ONTO + "parentFeature"), iri(father), null);
         statements.add(triple);
       }
     }
+
+    // Feature class declaration
+    Statement triple = statement(feature.getSubject(), RDF.TYPE, iri(GN_ONTO + "Feature"), null);
+    statements.add(triple);
+
     return statements;
   }
 
@@ -457,7 +474,7 @@ public class GeonamesProducer {
     new GeonamesProducer("input_source", "output")
         .populateCodes()
         .collectParents()
-        .labels()
+        .collectLabels()
         .features();
   }
 }
