@@ -231,17 +231,6 @@ public class GeonamesProducer {
         throw new RuntimeException(e);
       }
     }
-    //    files
-    //        .values()
-    //        .forEach(
-    //            w -> {
-    //              try {
-    //                w.getWriter().flush();
-    //                w.getWriter().close();
-    //              } catch (IOException e) {
-    //                throw new RuntimeException(e);
-    //              }
-    //            });
     return this;
   }
 
