@@ -36,5 +36,6 @@ description = 'Geonames RDF Converter'
 
 tasks.register('run', JavaExec) {
     classpath = sourceSets.main.runtimeClasspath
+    jvmArgs = ['-Xmx6g']
     mainClass = project.hasProperty("mainClass") ? project.property("mainClass").toString() : "conversion.GeonamesProducer"
 }
