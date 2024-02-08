@@ -140,8 +140,7 @@ public class GeonamesProducer {
 
                     Literal literal = lang.equals("") ? literal(label) : literal(label, lang);
 
-                    Statement st =
-                        statement(iri(codeToUri(code)), iri(property), literal(literal), null);
+                    Statement st = statement(iri(codeToUri(code)), iri(property), literal, null);
                     labels.put(codeToUri(code), st);
 
                   } else {
