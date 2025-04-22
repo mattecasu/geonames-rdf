@@ -9,7 +9,7 @@ repositories {
 }
 
 def mapdbVersion = "3.1.0"
-def guavaVersion = "33.4.0-jre"
+def guavaVersion = "33.4.8-jre"
 def rdf4jVersion = "5.1.3"
 def commonsLangVersion = "3.17.0"
 def logbackVersion = "1.5.17"
