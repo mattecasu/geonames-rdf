@@ -4,7 +4,7 @@ This is a csv-2-turtle converter for the GeoNames data.
 
 ## Run
 
-Just run convert-from-csv.sh .
+Just run `convert-from-csv.sh` .
 
 ## Acknowledgements
 
