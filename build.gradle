@@ -12,7 +12,7 @@ def mapdbVersion = "3.1.0"
 def guavaVersion = "33.5.0-jre"
 def rdf4jVersion = "5.2.2"
 def commonsLangVersion = "3.20.0"
-def logbackVersion = "1.5.20"
+def logbackVersion = "1.5.23"
 def jUnitVersion = "4.13.2"
 
 
